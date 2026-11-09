@@ -40,7 +40,9 @@ Status: ✅ done · 🚧 in progress · ⏳ planned
 - ✅ Lecturers open check-in and project a QR code that changes every 30 seconds
 - ✅ Students scan the QR code to mark themselves present; late after a set number of minutes
 - ✅ Lecturers see a live roster: every enrolled student and whether they've checked in
-- ⏳ Lecturers mark or correct attendance manually (present, late, absent, excused)
+- ✅ Lecturers mark or correct attendance manually (present, late, absent, excused), with every change audited
+- ✅ After class, everyone without a record can be marked absent in one step
+- ✅ Before class, only pre-approved absences (excused) can be recorded
 - ✅ One record per student per session, enforced by the database
 
 ### Reports and notifications (week 3)

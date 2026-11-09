@@ -165,3 +165,87 @@ attendanceRouter.get("/sessions/:id/attendance", authenticate, async (req, res) 
   res.json({ session: { id: session.id, course: session.course.code, startsAt: session.startsAt, checkInOpen: isOpen(session) }, summary, items });
 });
 
+
+const STATUSES = ["PRESENT", "LATE", "ABSENT", "EXCUSED"] as const;
+
+const markBody = z.object({
+  records: z
+    .array(z.object({ studentId: z.string().min(1), status: z.enum(STATUSES) }))
+    .min(1)
+    .max(500)
+    .refine((r) => new Set(r.map((x) => x.studentId)).size === r.length, "Each student can appear only once"),
+});
+
+// Lecturer marks or corrects attendance by hand. Every change is audited with the old
+// and new status, and the whole batch is saved together or not at all.
+attendanceRouter.put("/sessions/:id/attendance", authenticate, async (req, res) => {
+  const user = currentUser(req);
+  const { id } = idParam.parse(req.params);
+  const { records } = markBody.parse(req.body);
+  const session = await findManagedSession(id, user);
+
+  // Before class, only pre-approved absences (EXCUSED) make sense.
+  if (session.startsAt > new Date() && records.some((r) => r.status !== "EXCUSED")) {
+    throw badRequest("Before a session starts, students can only be marked EXCUSED");
+  }
+
+  const enrolled = await db.enrolment.findMany({
+    where: { courseId: session.courseId, studentId: { in: records.map((r) => r.studentId) } },
+    select: { studentId: true },
+  });
+  const enrolledIds = new Set(enrolled.map((e) => e.studentId));
+  const notEnrolled = records.filter((r) => !enrolledIds.has(r.studentId)).map((r) => r.studentId);
+  if (notEnrolled.length) throw badRequest(`Not enrolled in ${session.course.code}: ${notEnrolled.join(", ")}`);
+
+  const result = await db.$transaction(async (tx) => {
+    const existing = await tx.attendanceRecord.findMany({ where: { sessionId: id, studentId: { in: records.map((r) => r.studentId) } } });
+    const before = new Map(existing.map((e) => [e.studentId, e.status]));
+    const changes: { studentId: string; from: string | null; to: string }[] = [];
+
+    for (const r of records) {
+      const from = before.get(r.studentId) ?? null;
+      if (from === r.status) continue; // nothing to change
+      await tx.attendanceRecord.upsert({
+        where: { sessionId_studentId: { sessionId: id, studentId: r.studentId } },
+        create: { sessionId: id, studentId: r.studentId, status: r.status, method: "MANUAL", recordedById: user.id },
+        update: { status: r.status, method: "MANUAL", recordedById: user.id, recordedAt: new Date() },
+      });
+      changes.push({ studentId: r.studentId, from, to: r.status });
+    }
+
+    if (changes.length) {
+      await audit({ action: "attendance.mark", actorId: user.id, entityType: "ClassSession", entityId: id, metadata: { changes }, ip: req.ip }, tx);
+    }
+    return {
+      created: changes.filter((c) => c.from === null).length,
+      updated: changes.filter((c) => c.from !== null).length,
+      unchanged: records.length - changes.length,
+    };
+  });
+
+  res.json(result);
+});
+
+// After class: everyone enrolled who has no record yet is marked ABSENT.
+attendanceRouter.post("/sessions/:id/attendance/mark-absent", authenticate, async (req, res) => {
+  const user = currentUser(req);
+  const { id } = idParam.parse(req.params);
+  const session = await findManagedSession(id, user);
+
+  if (session.startsAt > new Date()) throw badRequest("This session hasn't started yet");
+  if (isOpen(session)) throw conflict("Close check-in first, so nobody still scanning is marked absent");
+
+  const missing = await db.enrolment.findMany({
+    where: { courseId: session.courseId, student: { attendance: { none: { sessionId: id } } } },
+    select: { studentId: true },
+  });
+
+  const { count } = await db.attendanceRecord.createMany({
+    data: missing.map((m) => ({ sessionId: id, studentId: m.studentId, status: "ABSENT" as const, method: "MANUAL" as const, recordedById: user.id })),
+    skipDuplicates: true, // someone recorded in the meantime keeps their record
+  });
+  if (count) {
+    await audit({ action: "attendance.mark_absent", actorId: user.id, entityType: "ClassSession", entityId: id, metadata: { markedAbsent: count }, ip: req.ip });
+  }
+  res.json({ markedAbsent: count });
+});
