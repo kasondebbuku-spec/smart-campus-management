@@ -1,0 +1,22 @@
+# Local PostgreSQL for development and tests:  docker compose up -d
+# Creates smart_campus (development) and smart_campus_test (used by `npm test`).
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: campus
+      POSTGRES_PASSWORD: campus
+      POSTGRES_DB: smart_campus
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/create-test-db.sql:/docker-entrypoint-initdb.d/create-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U campus"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  pgdata:

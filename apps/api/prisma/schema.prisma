@@ -1,0 +1,168 @@
+// Smart Campus data model.
+// Every person has a User (login + role). Students and lecturers also have a profile row.
+// Lecturers teach Courses; students Enrol in courses; each Course has ClassSessions,
+// and each session has one AttendanceRecord per enrolled student.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  LECTURER
+  STUDENT
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+  EXCUSED
+}
+
+enum AttendanceMethod {
+  QR // student scanned the session QR code
+  MANUAL // lecturer or admin marked it
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  role         Role
+  firstName    String
+  lastName     String
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  student       Student?
+  lecturer      Lecturer?
+  refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]         @relation("AuditActor")
+  recorded      AttendanceRecord[] @relation("RecordedBy")
+}
+
+model Student {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentNumber String   @unique
+  programme     String
+  yearOfStudy   Int
+
+  enrolments Enrolment[]
+  attendance AttendanceRecord[]
+}
+
+model Lecturer {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  staffNumber String   @unique
+  department  String
+
+  courses Course[]
+}
+
+model Course {
+  id         String    @id @default(cuid())
+  code       String    @unique // e.g. CSC4630
+  title      String
+  semester   String // e.g. 2026-S2
+  lecturerId String?
+  lecturer   Lecturer? @relation(fields: [lecturerId], references: [id], onDelete: SetNull)
+  createdAt  DateTime  @default(now())
+
+  enrolments Enrolment[]
+  sessions   ClassSession[]
+}
+
+model Enrolment {
+  id         String   @id @default(cuid())
+  studentId  String
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  courseId   String
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrolledAt DateTime @default(now())
+
+  @@unique([studentId, courseId])
+  @@index([courseId])
+}
+
+model ClassSession {
+  id       String   @id @default(cuid())
+  courseId String
+  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  startsAt DateTime
+  endsAt   DateTime
+  venue    String
+  // QR check-in is open only while this is in the future. The QR code carries a
+  // short-lived signed token, not this id, so a photo of last week's code is useless.
+  checkInClosesAt DateTime?
+  createdAt       DateTime  @default(now())
+
+  attendance AttendanceRecord[]
+
+  @@index([courseId, startsAt])
+}
+
+model AttendanceRecord {
+  id           String           @id @default(cuid())
+  sessionId    String
+  session      ClassSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status       AttendanceStatus
+  method       AttendanceMethod
+  recordedAt   DateTime         @default(now())
+  recordedById String?
+  recordedBy   User?            @relation("RecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, studentId]) // one record per student per session
+  @@index([studentId])
+}
+
+// Refresh tokens are random strings; only their SHA-256 hash is stored.
+// Each login starts a "family". Every refresh replaces the token with a new one in the
+// same family. If an already-used token is presented again, it was probably stolen,
+// so the whole family is revoked and the user must sign in again.
+model RefreshToken {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash   String    @unique
+  familyId    String
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  replacedById String?
+  userAgent   String?
+  ip          String?
+  createdAt   DateTime  @default(now())
+
+  @@index([familyId])
+  @@index([userId])
+}
+
+// Append-only record of security-relevant and data-changing actions.
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  action     String // e.g. auth.login, auth.login_failed, user.create, course.enrol
+  entityType String?
+  entityId   String?
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action, createdAt])
+}
