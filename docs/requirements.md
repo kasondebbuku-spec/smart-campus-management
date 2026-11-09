@@ -37,10 +37,11 @@ Status: ✅ done · 🚧 in progress · ⏳ planned
 - ✅ Lecturers create, move and cancel class sessions (time, venue)
 - ✅ No overlapping sessions for one course; no double-booked venues
 - ✅ Sessions with attendance can't be deleted
-- ⏳ Lecturers open check-in and project a QR code that changes every 30 seconds
-- ⏳ Students scan the QR code to mark themselves present; late after a set number of minutes
+- ✅ Lecturers open check-in and project a QR code that changes every 30 seconds
+- ✅ Students scan the QR code to mark themselves present; late after a set number of minutes
+- ✅ Lecturers see a live roster: every enrolled student and whether they've checked in
 - ⏳ Lecturers mark or correct attendance manually (present, late, absent, excused)
-- ⏳ One record per student per session, enforced by the database
+- ✅ One record per student per session, enforced by the database
 
 ### Reports and notifications (week 3)
 - ⏳ Attendance rate per student, per course and per session

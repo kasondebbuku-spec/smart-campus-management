@@ -103,9 +103,12 @@ model ClassSession {
   startsAt DateTime
   endsAt   DateTime
   venue    String
-  // QR check-in is open only while this is in the future. The QR code carries a
-  // short-lived signed token, not this id, so a photo of last week's code is useless.
+  // QR check-in: open from checkInOpenedAt until checkInClosesAt. Students who check in
+  // after lateAfter are marked LATE. The QR code carries a signed token that changes
+  // every 30 seconds, so a photo of the code stops working almost immediately.
+  checkInOpenedAt DateTime?
   checkInClosesAt DateTime?
+  lateAfter       DateTime?
   createdAt       DateTime  @default(now())
 
   attendance AttendanceRecord[]

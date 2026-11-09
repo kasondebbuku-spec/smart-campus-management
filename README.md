@@ -6,7 +6,7 @@
 
 Many university classes still take attendance on paper. Sheets get lost, friends sign for each other, and students learn they've fallen below the attendance requirement only when it's too late. Smart Campus keeps one trustworthy attendance record per student per class and shows everyone the part they're allowed to see.
 
-> **Status: week 2 of 3.** Done: authentication, roles, users, courses, enrolment, class sessions with clash detection, and audit logging, with 56 tests. Next: QR attendance, the web app and deployment. See the [roadmap](#roadmap).
+> **Status: week 2 of 3.** Done: authentication, roles, users, courses, enrolment, class sessions with clash detection, rotating QR check-in, attendance rosters and audit logging, with 84 tests. Next: manual attendance marking, the web app and deployment. See the [roadmap](#roadmap).
 
 ## Who it's for
 
@@ -23,6 +23,7 @@ Many university classes still take attendance on paper. Sheets get lost, friends
 - **Instant deactivation.** Disabling an account signs that person out everywhere immediately.
 - **Audit trail.** Sign-ins, failed sign-ins, token theft detection, account and course changes are recorded with who, what and when.
 - **Database-enforced integrity.** Unique enrolments and attendance records, transactions for multi-step changes.
+- **QR check-in that can't be shared.** The code on the lecturer's screen changes every 30 seconds and is signed by the server, so a photo sent to a friend stops working within a minute. Nothing is stored per code: the server recomputes and checks the signature. See [how it works](docs/architecture.md#qr-check-in).
 - **Timetable clash detection.** A course can't have two overlapping sessions, and a venue can't be double-booked across courses.
 - **Consistent API errors.** Every error looks like `{ error: { code, message, details? } }`, with field-level validation messages.
 - **Tested against a real database.** Unit tests plus HTTP integration tests run against PostgreSQL in CI on every pull request.
@@ -68,6 +69,11 @@ Base URL: `/api/v1`
 | `GET` | `/sessions/:id` | anyone who can see the course | One session |
 | `PATCH` | `/sessions/:id` | admin, course lecturer | Move or re-room a session (audited with the old values) |
 | `DELETE` | `/sessions/:id` | admin, course lecturer | Delete a session that has no attendance yet |
+| `POST` | `/sessions/:id/check-in/open` | admin, course lecturer | Open QR check-in (`durationMinutes`, `lateAfterMinutes`) |
+| `GET` | `/sessions/:id/check-in/qr` | admin, course lecturer | Current QR code and seconds until it changes |
+| `POST` | `/sessions/:id/check-in/close` | admin, course lecturer | Close check-in |
+| `POST` | `/check-in` | student | Scan a QR code; records PRESENT or LATE |
+| `GET` | `/sessions/:id/attendance` | admin, course lecturer | Every enrolled student's status, plus a summary |
 | `GET` | `/health` | anyone | Liveness and database check |
 
 An OpenAPI specification is on the roadmap.
@@ -78,13 +84,15 @@ An OpenAPI specification is on the roadmap.
 npm test
 ```
 
-- **Unit tests**: token signing and verification, tampered and forged tokens, `alg: none`, expiry, refresh token generation and hashing
+- **Unit tests**: access token signing and verification, tampered and forged tokens, `alg: none`, expiry, refresh token hashing, QR token rotation and signatures
 - **Integration tests** (Supertest against PostgreSQL):
   - login, cookie flags, identical errors for unknown email and wrong password, rate limiting
   - refresh rotation, theft detection, simultaneous refreshes, expiry, logout
   - admin-only user management, validation messages, duplicates, no half-created users, immediate deactivation
   - course visibility for each role, 404 for hidden courses, enrolment that's safe to repeat, class list permissions
   - class sessions: who can schedule, time validation, course and venue clash detection, back-to-back bookings, date filters, protected deletion
+  - QR tokens: 30-second rotation, one period of grace, expiry, forged and copied signatures, malformed input
+  - check-in: on time vs late, closed check-in, not enrolled, double and simultaneous scans, hand-marked records never overwritten, roster summary
 
 Integration tests use `TEST_DATABASE_URL` and are skipped when it isn't set. CI runs type checks, lint, all tests and the build on every push and pull request: [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
@@ -126,6 +134,8 @@ apps/api/
   src/modules/users/          admin user management
   src/modules/courses/        courses, enrolment, class lists, access rules
   src/modules/sessions/       class sessions and clash detection
+  src/modules/attendance/     QR check-in and attendance rosters
+  src/lib/qr-token.ts         rotating signed QR codes
   src/lib/                    tokens, audit log, error handling
   tests/                      unit and integration tests
 packages/shared/              types and constants shared with the web app
@@ -135,7 +145,7 @@ docs/                         requirements, architecture, database design
 ## Roadmap
 
 - [x] **Week 1: foundation.** Requirements, architecture, database design, auth with refresh rotation, roles, users, courses, enrolment, audit log, tests, CI
-- [ ] **Week 2: attendance and web app.** ~~Class sessions~~ ✅, rotating QR check-in, manual marking, Next.js dashboards for each role, OpenAPI docs
+- [ ] **Week 2: attendance and web app.** ~~Class sessions~~ ✅, ~~rotating QR check-in~~ ✅, manual marking, Next.js dashboards for each role, OpenAPI docs
 - [ ] **Week 3: reports and launch.** Attendance analytics, low-attendance warnings, CSV and PDF export, end-to-end tests with Playwright, Docker deployment, live demo
 
 ## Author
