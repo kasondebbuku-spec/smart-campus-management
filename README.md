@@ -6,7 +6,7 @@
 
 Many university classes still take attendance on paper. Sheets get lost, friends sign for each other, and students learn they've fallen below the attendance requirement only when it's too late. Smart Campus keeps one trustworthy attendance record per student per class and shows everyone the part they're allowed to see.
 
-> **Status: week 1 of 3.** The API foundation is done: authentication, roles, users, courses, enrolment and audit logging, with 40 tests. Attendance, the web app and deployment come next. See the [roadmap](#roadmap).
+> **Status: week 2 of 3.** Done: authentication, roles, users, courses, enrolment, class sessions with clash detection, and audit logging, with 56 tests. Next: QR attendance, the web app and deployment. See the [roadmap](#roadmap).
 
 ## Who it's for
 
@@ -23,6 +23,7 @@ Many university classes still take attendance on paper. Sheets get lost, friends
 - **Instant deactivation.** Disabling an account signs that person out everywhere immediately.
 - **Audit trail.** Sign-ins, failed sign-ins, token theft detection, account and course changes are recorded with who, what and when.
 - **Database-enforced integrity.** Unique enrolments and attendance records, transactions for multi-step changes.
+- **Timetable clash detection.** A course can't have two overlapping sessions, and a venue can't be double-booked across courses.
 - **Consistent API errors.** Every error looks like `{ error: { code, message, details? } }`, with field-level validation messages.
 - **Tested against a real database.** Unit tests plus HTTP integration tests run against PostgreSQL in CI on every pull request.
 
@@ -62,6 +63,11 @@ Base URL: `/api/v1`
 | `POST` | `/courses` | admin | Create a course |
 | `POST` | `/courses/:id/enrolments` | admin | Enrol students (repeat enrolments are skipped) |
 | `GET` | `/courses/:id/students` | admin, course lecturer | Class list |
+| `POST` | `/courses/:id/sessions` | admin, course lecturer | Schedule a class session (rejects course and venue clashes) |
+| `GET` | `/courses/:id/sessions?from=&to=` | anyone who can see the course | Timetable for the course |
+| `GET` | `/sessions/:id` | anyone who can see the course | One session |
+| `PATCH` | `/sessions/:id` | admin, course lecturer | Move or re-room a session (audited with the old values) |
+| `DELETE` | `/sessions/:id` | admin, course lecturer | Delete a session that has no attendance yet |
 | `GET` | `/health` | anyone | Liveness and database check |
 
 An OpenAPI specification is on the roadmap.
@@ -78,6 +84,7 @@ npm test
   - refresh rotation, theft detection, simultaneous refreshes, expiry, logout
   - admin-only user management, validation messages, duplicates, no half-created users, immediate deactivation
   - course visibility for each role, 404 for hidden courses, enrolment that's safe to repeat, class list permissions
+  - class sessions: who can schedule, time validation, course and venue clash detection, back-to-back bookings, date filters, protected deletion
 
 Integration tests use `TEST_DATABASE_URL` and are skipped when it isn't set. CI runs type checks, lint, all tests and the build on every push and pull request: [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
@@ -117,7 +124,8 @@ apps/api/
   src/middleware/auth.ts      authenticate and requireRole
   src/modules/auth/           login, refresh rotation, logout
   src/modules/users/          admin user management
-  src/modules/courses/        courses, enrolment, class lists
+  src/modules/courses/        courses, enrolment, class lists, access rules
+  src/modules/sessions/       class sessions and clash detection
   src/lib/                    tokens, audit log, error handling
   tests/                      unit and integration tests
 packages/shared/              types and constants shared with the web app
@@ -127,7 +135,7 @@ docs/                         requirements, architecture, database design
 ## Roadmap
 
 - [x] **Week 1: foundation.** Requirements, architecture, database design, auth with refresh rotation, roles, users, courses, enrolment, audit log, tests, CI
-- [ ] **Week 2: attendance and web app.** Class sessions, rotating QR check-in, manual marking, Next.js dashboards for each role, OpenAPI docs
+- [ ] **Week 2: attendance and web app.** ~~Class sessions~~ ✅, rotating QR check-in, manual marking, Next.js dashboards for each role, OpenAPI docs
 - [ ] **Week 3: reports and launch.** Attendance analytics, low-attendance warnings, CSV and PDF export, end-to-end tests with Playwright, Docker deployment, live demo
 
 ## Author

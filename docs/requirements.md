@@ -34,7 +34,9 @@ Status: ✅ done · 🚧 in progress · ⏳ planned
 - ✅ Lecturers and admins see a course's class list
 
 ### Attendance (week 2)
-- ⏳ Lecturers create class sessions (time, venue)
+- ✅ Lecturers create, move and cancel class sessions (time, venue)
+- ✅ No overlapping sessions for one course; no double-booked venues
+- ✅ Sessions with attendance can't be deleted
 - ⏳ Lecturers open check-in and project a QR code that changes every 30 seconds
 - ⏳ Students scan the QR code to mark themselves present; late after a set number of minutes
 - ⏳ Lecturers mark or correct attendance manually (present, late, absent, excused)
