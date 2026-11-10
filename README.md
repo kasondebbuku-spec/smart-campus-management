@@ -6,7 +6,7 @@
 
 Many university classes still take attendance on paper. Sheets get lost, friends sign for each other, and students learn they've fallen below the attendance requirement only when it's too late. Smart Campus keeps one trustworthy attendance record per student per class and shows everyone the part they're allowed to see.
 
-> **Status: week 2 of 3.** Done: authentication, roles, users, courses, enrolment, class sessions with clash detection, rotating QR check-in, manual attendance marking, attendance rosters and audit logging, with 99 tests. Next: OpenAPI docs, the web app and deployment. See the [roadmap](#roadmap).
+> **Status: week 2 of 3.** Done: authentication, roles, users, courses, enrolment, class sessions with clash detection, rotating QR check-in, manual attendance marking, attendance rosters, audit logging and interactive OpenAPI docs, with 108 tests. Next: the web app and deployment. See the [roadmap](#roadmap).
 
 ## Who it's for
 
@@ -78,7 +78,9 @@ Base URL: `/api/v1`
 | `POST` | `/sessions/:id/attendance/mark-absent` | admin, course lecturer | Mark everyone without a record ABSENT (after check-in closes) |
 | `GET` | `/health` | anyone | Liveness and database check |
 
-An OpenAPI specification is on the roadmap.
+**Interactive docs:** run the API and open [`/api/docs`](http://localhost:4100/api/docs) to browse every endpoint and try it out. Sign in with `POST /auth/login`, click **Authorize**, and paste the access token. The raw OpenAPI 3.1 spec is at `/api/docs/openapi.json`.
+
+A test reads the route files and fails if any endpoint is missing from the docs, or the docs describe one that doesn't exist, so the two can't drift apart.
 
 ## Testing
 
@@ -95,6 +97,7 @@ npm test
   - class sessions: who can schedule, time validation, course and venue clash detection, back-to-back bookings, date filters, protected deletion
   - QR tokens: 30-second rotation, one period of grace, expiry, forged and copied signatures, malformed input
   - check-in: on time vs late, closed check-in, not enrolled, double and simultaneous scans, hand-marked records never overwritten, roster summary
+  - API docs: every route documented and nothing extra, path parameters declared, no broken references, docs page served under a nonce-based security policy
   - manual marking: batch create and correct, old and new status audited, no-op changes not logged, all-or-nothing batches, EXCUSED-only before class, mark-absent safe to repeat
 
 Integration tests use `TEST_DATABASE_URL` and are skipped when it isn't set. CI runs type checks, lint, all tests and the build on every push and pull request: [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
@@ -139,6 +142,7 @@ apps/api/
   src/modules/sessions/       class sessions and clash detection
   src/modules/attendance/     QR check-in, manual marking and rosters
   src/lib/qr-token.ts         rotating signed QR codes
+  src/openapi/                OpenAPI spec and the /api/docs page
   src/lib/                    tokens, audit log, error handling
   tests/                      unit and integration tests
 packages/shared/              types and constants shared with the web app
@@ -148,7 +152,7 @@ docs/                         requirements, architecture, database design
 ## Roadmap
 
 - [x] **Week 1: foundation.** Requirements, architecture, database design, auth with refresh rotation, roles, users, courses, enrolment, audit log, tests, CI
-- [ ] **Week 2: attendance and web app.** ~~Class sessions~~ ✅, ~~rotating QR check-in~~ ✅, ~~manual marking~~ ✅, Next.js dashboards for each role, OpenAPI docs
+- [ ] **Week 2: attendance and web app.** ~~Class sessions~~ ✅, ~~rotating QR check-in~~ ✅, ~~manual marking~~ ✅, ~~OpenAPI docs~~ ✅, Next.js dashboards for each role
 - [ ] **Week 3: reports and launch.** Attendance analytics, low-attendance warnings, CSV and PDF export, end-to-end tests with Playwright, Docker deployment, live demo
 
 ## Author
