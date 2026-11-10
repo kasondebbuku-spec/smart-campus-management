@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -76,7 +77,8 @@ export default function DashboardPage() {
         {courses && courses.length > 0 && (
           <ul className="grid gap-3 sm:grid-cols-2">
             {courses.map((c) => (
-              <li key={c.id} className="rounded-xl border border-line bg-surface p-4 shadow-sm">
+              <li key={c.id}>
+                <Link href={`/courses/${c.id}`} className="block rounded-xl border border-line bg-surface p-4 shadow-sm transition hover:border-brand">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-xs font-semibold uppercase tracking-wide text-brand">{c.code}</div>
@@ -96,6 +98,7 @@ export default function DashboardPage() {
                     </dd>
                   </div>
                 </dl>
+                </Link>
               </li>
             ))}
           </ul>
