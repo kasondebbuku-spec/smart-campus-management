@@ -12,7 +12,10 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (status === "signed-out") router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+    if (status !== "signed-out") return;
+    // Keep the query string too: a scanned check-in link carries its code in ?t=...
+    const here = pathname + window.location.search;
+    router.replace(`/login?next=${encodeURIComponent(here)}`);
   }, [status, router, pathname]);
 
   if (status !== "signed-in") {

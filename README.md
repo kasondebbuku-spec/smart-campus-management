@@ -6,7 +6,7 @@
 
 Many university classes still take attendance on paper. Sheets get lost, friends sign for each other, and students learn they've fallen below the attendance requirement only when it's too late. Smart Campus keeps one trustworthy attendance record per student per class and shows everyone the part they're allowed to see.
 
-> **Status: week 2 of 3.** Done: authentication, roles, users, courses, enrolment, class sessions with clash detection, rotating QR check-in, manual attendance marking, attendance rosters, audit logging, interactive OpenAPI docs, and a Next.js web app where lecturers schedule sessions and run QR check-in with a live roster, with 138 tests. Next: the student check-in page, then deployment. See the [roadmap](#roadmap).
+> **Status: week 2 of 3.** Done: authentication, roles, users, courses, enrolment, class sessions with clash detection, rotating QR check-in, manual attendance marking, attendance rosters, audit logging, interactive OpenAPI docs, and a Next.js web app where lecturers run QR check-in with a live roster and students check in by scanning with their phone camera, with 149 tests. Next (week 3): reports, end-to-end tests and deployment. See the [roadmap](#roadmap).
 
 ## Who it's for
 
@@ -22,6 +22,7 @@ Many university classes still take attendance on paper. Sheets get lost, friends
 - **Role-based access control.** Enforced in middleware and in the queries themselves: a lecturer's query can only ever match their own courses. Courses you can't see return 404, not 403.
 - **Safe sessions in the browser.** The web app keeps the access token in memory only (never `localStorage`), and the refresh cookie is `httpOnly`, so page scripts can't read either. Many requests that expire together share one refresh, and two tabs refreshing at the same moment don't trip the theft detection.
 - **Lecturer check-in screen.** Open check-in, project a full-screen QR code that redraws every 30 seconds, and watch the roster fill in live. Close it and mark the rest absent in one click. The QR code holds a link, so students scan it with their normal camera app.
+- **Student check-in from the phone camera.** Scanning opens `/check-in` and shows "You're checked in · Marked present (or late)". A student who isn't signed in yet signs in first and lands straight back on check-in with the code intact. Expired codes, closed check-in and not being on the class list each get a plain explanation.
 - **Instant deactivation.** Disabling an account signs that person out everywhere immediately.
 - **Audit trail.** Sign-ins, failed sign-ins, token theft detection, account and course changes are recorded with who, what and when.
 - **Database-enforced integrity.** Unique enrolments and attendance records, transactions for multi-step changes.
@@ -92,7 +93,7 @@ npm test
 ```
 
 - **Unit tests**: access token signing and verification, tampered and forged tokens, `alg: none`, expiry, refresh token hashing, QR token rotation and signatures
-- **Web app tests**: Lusaka time formatting and form input conversion, the QR check-in link; the API client attaches tokens, refreshes once and retries, shares one refresh between concurrent requests, retries a two-tab race, signs out when refresh fails; the sign-in redirect refuses other sites (`//host`, `/\host`, control characters)
+- **Web app tests**: what a student sees for every check-in outcome, keeping the code through sign-in; Lusaka time formatting and form input conversion, the QR check-in link; the API client attaches tokens, refreshes once and retries, shares one refresh between concurrent requests, retries a two-tab race, signs out when refresh fails; the sign-in redirect refuses other sites (`//host`, `/\host`, control characters)
 - **Integration tests** (Supertest against PostgreSQL):
   - login, cookie flags, identical errors for unknown email and wrong password, rate limiting
   - refresh rotation, theft detection, two tabs refreshing at once (no false alarm), expiry, logout
@@ -161,6 +162,7 @@ apps/web/
   src/app/(app)/dashboard/    role-aware dashboard
   src/app/(app)/courses/      course timetable and session scheduling
   src/app/(app)/sessions/     check-in controls, live roster, mark absent
+  src/app/(app)/check-in/     where a scanned QR code lands (students)
   src/components/QrDisplay    rotating full-screen QR code
   tests/                      unit tests
 packages/shared/              types and constants shared with the web app
@@ -170,7 +172,7 @@ docs/                         requirements, architecture, database design
 ## Roadmap
 
 - [x] **Week 1: foundation.** Requirements, architecture, database design, auth with refresh rotation, roles, users, courses, enrolment, audit log, tests, CI
-- [ ] **Week 2: attendance and web app.** ~~Class sessions~~ ✅, ~~rotating QR check-in~~ ✅, ~~manual marking~~ ✅, ~~OpenAPI docs~~ ✅, ~~web app with sign-in and dashboard~~ ✅, ~~lecturer check-in screen~~ ✅, student check-in page
+- [x] **Week 2: attendance and web app.** ~~Class sessions~~ ✅, ~~rotating QR check-in~~ ✅, ~~manual marking~~ ✅, ~~OpenAPI docs~~ ✅, ~~web app with sign-in and dashboard~~ ✅, ~~lecturer check-in screen~~ ✅, ~~student check-in~~ ✅
 - [ ] **Week 3: reports and launch.** Attendance analytics, low-attendance warnings, CSV and PDF export, end-to-end tests with Playwright, Docker deployment, live demo
 
 ## Author
