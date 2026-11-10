@@ -2,7 +2,10 @@
   "name": "smart-campus-management",
   "private": true,
   "description": "University management platform: students, lecturers, courses, attendance and reports.",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev:api": "npm run dev -w apps/api",
     "build": "npm run build --workspaces --if-present",
@@ -10,7 +13,10 @@
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "db:migrate": "npm run db:migrate -w apps/api",
-    "db:seed": "npm run db:seed -w apps/api"
+    "db:seed": "npm run db:seed -w apps/api",
+    "dev:web": "npm run dev -w apps/web"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

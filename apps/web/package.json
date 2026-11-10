@@ -1,0 +1,34 @@
+{
+  "name": "@campus/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@campus/shared": "*",
+    "next": "15.5.28",
+    "qrcode": "^1.5.4",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^22.0.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "15.5.28",
+    "tailwindcss": "^4",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.4"
+  }
+}

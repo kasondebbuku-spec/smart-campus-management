@@ -89,9 +89,13 @@ export const openApiSpec = {
         tags: ["Auth"],
         summary: "Exchange the refresh cookie for a new access token",
         description:
-          "Rotates the refresh token: the old one stops working. Presenting an already-used refresh token revokes the whole session, because it was probably copied.",
+          "Rotates the refresh token: the old one stops working. Presenting an already-used refresh token revokes the whole session, because it was probably copied, unless it was swapped in the last 10 seconds by another tab of the same session.",
         security: [{ refreshCookie: [] }],
-        responses: { 200: ok("New access token; also sets a new cookie", ref("Session")), 401: err("Session expired or revoked") },
+        responses: {
+          200: ok("New access token; also sets a new cookie", ref("Session")),
+          401: err("Session expired or revoked"),
+          409: err("Another tab refreshed this session a moment ago (`refresh_race`); retry, and the browser will send the new cookie"),
+        },
       },
     },
     "/api/v1/auth/logout": {
