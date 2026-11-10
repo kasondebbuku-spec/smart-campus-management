@@ -10,6 +10,7 @@ import { authRouter } from "./modules/auth/auth.routes.js";
 import { coursesRouter } from "./modules/courses/courses.routes.js";
 import { sessionsRouter } from "./modules/sessions/sessions.routes.js";
 import { usersRouter } from "./modules/users/users.routes.js";
+import { docsRouter } from "./openapi/docs.routes.js";
 
 export type AppOptions = { loginRateLimit?: number };
 
@@ -27,6 +28,7 @@ export function createApp(opts: AppOptions = {}) {
     res.json({ status: "ok" });
   });
 
+  app.use("/api/docs", docsRouter); // interactive API docs
   app.use("/api/v1/auth", authRouter({ loginRateLimit: opts.loginRateLimit ?? config.LOGIN_RATE_LIMIT }));
   app.use("/api/v1/users", usersRouter);
   app.use("/api/v1/courses", coursesRouter);
