@@ -4,7 +4,7 @@ import type { Role, User } from "@prisma/client";
 import { config } from "../../config.js";
 import { db } from "../../db.js";
 import { audit } from "../../lib/audit.js";
-import { unauthorized } from "../../lib/errors.js";
+import { HttpError, unauthorized } from "../../lib/errors.js";
 import { hashToken, newRefreshToken, signAccessToken } from "../../lib/tokens.js";
 
 type ClientInfo = { ip?: string | null; userAgent?: string | null };
@@ -52,8 +52,14 @@ export async function refresh(presented: string | undefined, client: ClientInfo)
   if (!stored) throw unauthorized("Session expired, please sign in again");
 
   if (stored.revokedAt) {
-    // This token was already used. Either an attacker or the real user is replaying it,
-    // and we can't tell which, so end every session in this family.
+    // Two browser tabs often refresh at the same moment with the same cookie. If this token
+    // was swapped a few seconds ago and its session is still alive, that's what happened:
+    // tell the client to retry (its cookie jar now holds the new token) instead of
+    // treating it as theft.
+    if (await isRecentRotation(stored)) throw refreshRace();
+
+    // Otherwise this token was already used and the session moved on. Either an attacker or
+    // the real user is replaying it, and we can't tell which, so end the whole session.
     await handleReuse(stored, client);
     throw unauthorized("Session expired, please sign in again");
   }
@@ -67,8 +73,8 @@ export async function refresh(presented: string | undefined, client: ClientInfo)
     data: { revokedAt: new Date() },
   });
   if (claimed.count === 0) {
-    await handleReuse(stored, client);
-    throw unauthorized("Session expired, please sign in again");
+    // Another request claimed this token a moment ago: the same race as above.
+    throw refreshRace();
   }
 
   const session = await issueSession(stored.user, stored.familyId, client);
@@ -87,6 +93,17 @@ export async function logout(presented: string | undefined, client: ClientInfo) 
 
 export async function revokeAllForUser(userId: string) {
   await db.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+}
+
+const refreshRace = () => new HttpError(409, "Session was refreshed by another tab; retry", "refresh_race");
+
+async function isRecentRotation(stored: { familyId: string; revokedAt: Date | null }) {
+  if (!stored.revokedAt) return false;
+  const age = Date.now() - stored.revokedAt.getTime();
+  if (age > config.REFRESH_REUSE_GRACE_SECONDS * 1000) return false;
+  // After a logout or a theft alert the whole family is revoked, so there's no live token.
+  const live = await db.refreshToken.count({ where: { familyId: stored.familyId, revokedAt: null } });
+  return live > 0;
 }
 
 // Returns how many live tokens were revoked.

@@ -9,7 +9,7 @@ flowchart LR
       L([Lecturer laptop])
       A([Admin])
     end
-    subgraph Web["apps/web — Next.js (week 2)"]
+    subgraph Web["apps/web — Next.js"]
       UI[Role-based dashboards]
     end
     subgraph API["apps/api — Express + TypeScript"]
@@ -23,7 +23,7 @@ flowchart LR
     DB[(PostgreSQL)]
 
     S & L & A --> UI
-    UI -->|REST + Bearer token| MW
+    UI -->|"/api/* forwarded, Bearer token"| MW
     MW --> AUTH & USERS & COURSES & ATT
     AUTH & USERS & COURSES & ATT --> AUD
     AUTH & USERS & COURSES & ATT -->|Prisma| DB
@@ -86,6 +86,9 @@ sequenceDiagram
 | Access check **loads the user on every request** | Deactivating an account takes effect immediately, not after 15 minutes |
 | **Same error** for unknown email and wrong password, and a dummy bcrypt compare | Attackers can't find out which emails are registered |
 | **Rate limit** on login | Slows down password guessing |
+| **Grace period** of 10 seconds for a just-swapped refresh token | Two tabs refreshing together isn't theft: the second gets `409 refresh_race` and retries with the new cookie, instead of the whole session being revoked |
+| Web app **forwards `/api/*`** to the API | The refresh cookie is first-party to the site, so no cross-origin cookie settings are needed |
+| Access token kept **in memory only** in the browser | Not in `localStorage`, where any script on the page could read it; a reload gets a fresh one from the refresh cookie |
 
 ## QR check-in
 
