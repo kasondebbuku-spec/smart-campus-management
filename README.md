@@ -6,7 +6,7 @@
 
 Many university classes still take attendance on paper. Sheets get lost, friends sign for each other, and students learn they've fallen below the attendance requirement only when it's too late. Smart Campus keeps one trustworthy attendance record per student per class and shows everyone the part they're allowed to see.
 
-> **Status: week 2 of 3.** Done: authentication, roles, users, courses, enrolment, class sessions with clash detection, rotating QR check-in, manual attendance marking, attendance rosters, audit logging and interactive OpenAPI docs, with 108 tests. Next: the web app and deployment. See the [roadmap](#roadmap).
+> **Status: week 2 of 3.** Done: authentication, roles, users, courses, enrolment, class sessions with clash detection, rotating QR check-in, manual attendance marking, attendance rosters, audit logging, interactive OpenAPI docs, and a Next.js web app where lecturers schedule sessions and run QR check-in with a live roster, with 138 tests. Next: the student check-in page, then deployment. See the [roadmap](#roadmap).
 
 ## Who it's for
 
@@ -20,6 +20,8 @@ Many university classes still take attendance on paper. Sheets get lost, friends
 
 - **Secure sessions.** 15-minute access tokens plus refresh tokens in `httpOnly` cookies. Refresh tokens are stored only as hashes, and each one works once. If an old one is replayed, the whole session is revoked. See the [auth design](docs/architecture.md#authentication-design).
 - **Role-based access control.** Enforced in middleware and in the queries themselves: a lecturer's query can only ever match their own courses. Courses you can't see return 404, not 403.
+- **Safe sessions in the browser.** The web app keeps the access token in memory only (never `localStorage`), and the refresh cookie is `httpOnly`, so page scripts can't read either. Many requests that expire together share one refresh, and two tabs refreshing at the same moment don't trip the theft detection.
+- **Lecturer check-in screen.** Open check-in, project a full-screen QR code that redraws every 30 seconds, and watch the roster fill in live. Close it and mark the rest absent in one click. The QR code holds a link, so students scan it with their normal camera app.
 - **Instant deactivation.** Disabling an account signs that person out everywhere immediately.
 - **Audit trail.** Sign-ins, failed sign-ins, token theft detection, account and course changes are recorded with who, what and when.
 - **Database-enforced integrity.** Unique enrolments and attendance records, transactions for multi-step changes.
@@ -32,7 +34,8 @@ Many university classes still take attendance on paper. Sheets get lost, friends
 
 ```mermaid
 flowchart LR
-    Web["Next.js web app<br/>(week 2)"] -->|REST + Bearer token| API
+    Browser([Browser]) --> Web["Next.js web app<br/>sign-in · dashboards"]
+    Web -->|"/api/* forwarded<br/>(cookie stays first-party)"| API
     subgraph API["Express API (TypeScript)"]
       MW["helmet · CORS · rate limit<br/>authenticate · requireRole"] --> M["auth · users · courses<br/>attendance (week 2)"]
       M --> AUD[audit log]
@@ -89,9 +92,10 @@ npm test
 ```
 
 - **Unit tests**: access token signing and verification, tampered and forged tokens, `alg: none`, expiry, refresh token hashing, QR token rotation and signatures
+- **Web app tests**: Lusaka time formatting and form input conversion, the QR check-in link; the API client attaches tokens, refreshes once and retries, shares one refresh between concurrent requests, retries a two-tab race, signs out when refresh fails; the sign-in redirect refuses other sites (`//host`, `/\host`, control characters)
 - **Integration tests** (Supertest against PostgreSQL):
   - login, cookie flags, identical errors for unknown email and wrong password, rate limiting
-  - refresh rotation, theft detection, simultaneous refreshes, expiry, logout
+  - refresh rotation, theft detection, two tabs refreshing at once (no false alarm), expiry, logout
   - admin-only user management, validation messages, duplicates, no half-created users, immediate deactivation
   - course visibility for each role, 404 for hidden courses, enrolment that's safe to repeat, class list permissions
   - class sessions: who can schedule, time validation, course and venue clash detection, back-to-back bookings, date filters, protected deletion
@@ -115,10 +119,13 @@ cp apps/api/.env.example apps/api/.env
 npm install
 npm run db:migrate                   # create the tables
 npm run db:seed                      # admin, 2 lecturers, 5 students, 2 courses
-npm run dev:api                      # http://localhost:4000
+npm run dev:api                      # API on http://localhost:4000
+npm run dev:web                      # web app on http://localhost:3000 (in a second terminal)
 ```
 
-Try it:
+Open http://localhost:3000 and sign in as `admin@campus.test` with your `SEED_ADMIN_PASSWORD`. The demo lecturers (`m.phiri@campus.test`, `c.banda@campus.test`) and students (for example `natasha.mwila@campus.test`) use the same password. If the API runs on another port, set `API_URL` in `apps/web/.env`.
+
+Or call the API directly:
 
 ```bash
 curl -s -X POST localhost:4000/api/v1/auth/login \
@@ -145,6 +152,17 @@ apps/api/
   src/openapi/                OpenAPI spec and the /api/docs page
   src/lib/                    tokens, audit log, error handling
   tests/                      unit and integration tests
+apps/web/
+  src/lib/api.ts              API client: tokens in memory, one shared refresh, race retry
+  src/lib/auth.tsx            sign-in state for the whole app
+  src/lib/redirect.ts         safe "go back to where you were" after sign-in
+  src/lib/time.ts             dates shown and entered in Lusaka time
+  src/app/login/              sign-in page
+  src/app/(app)/dashboard/    role-aware dashboard
+  src/app/(app)/courses/      course timetable and session scheduling
+  src/app/(app)/sessions/     check-in controls, live roster, mark absent
+  src/components/QrDisplay    rotating full-screen QR code
+  tests/                      unit tests
 packages/shared/              types and constants shared with the web app
 docs/                         requirements, architecture, database design
 ```
@@ -152,7 +170,7 @@ docs/                         requirements, architecture, database design
 ## Roadmap
 
 - [x] **Week 1: foundation.** Requirements, architecture, database design, auth with refresh rotation, roles, users, courses, enrolment, audit log, tests, CI
-- [ ] **Week 2: attendance and web app.** ~~Class sessions~~ ✅, ~~rotating QR check-in~~ ✅, ~~manual marking~~ ✅, ~~OpenAPI docs~~ ✅, Next.js dashboards for each role
+- [ ] **Week 2: attendance and web app.** ~~Class sessions~~ ✅, ~~rotating QR check-in~~ ✅, ~~manual marking~~ ✅, ~~OpenAPI docs~~ ✅, ~~web app with sign-in and dashboard~~ ✅, ~~lecturer check-in screen~~ ✅, student check-in page
 - [ ] **Week 3: reports and launch.** Attendance analytics, low-attendance warnings, CSV and PDF export, end-to-end tests with Playwright, Docker deployment, live demo
 
 ## Author
