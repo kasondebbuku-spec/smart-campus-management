@@ -1,10 +1,10 @@
 import { Router } from "express";
-import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { db } from "../../db.js";
 import { audit } from "../../lib/audit.js";
 import { badRequest, notFound } from "../../lib/errors.js";
-import { authenticate, currentUser, requireRole, type AuthUser } from "../../middleware/auth.js";
+import { authenticate, currentUser, requireRole } from "../../middleware/auth.js";
+import { visibleCourses } from "./access.js";
 
 const createCourseBody = z.object({
   code: z
@@ -22,14 +22,6 @@ const idParam = z.object({ id: z.string().min(1) });
 const enrolBody = z.object({
   studentIds: z.array(z.string()).min(1).max(500),
 });
-
-// Which courses a user may see: admins see all, lecturers the ones they teach,
-// students the ones they are enrolled in.
-function visibleCourses(user: AuthUser): Prisma.CourseWhereInput {
-  if (user.role === "ADMIN") return {};
-  if (user.role === "LECTURER") return { lecturer: { userId: user.id } };
-  return { enrolments: { some: { student: { userId: user.id } } } };
-}
 
 const courseSelect = {
   id: true,

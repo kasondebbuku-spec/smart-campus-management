@@ -17,7 +17,7 @@ flowchart LR
       AUTH[auth module]
       USERS[users module]
       COURSES[courses module]
-      ATT[attendance module · week 2]
+      ATT[sessions + attendance modules]
       AUD[audit log]
     end
     DB[(PostgreSQL)]
@@ -86,6 +86,39 @@ sequenceDiagram
 | Access check **loads the user on every request** | Deactivating an account takes effect immediately, not after 15 minutes |
 | **Same error** for unknown email and wrong password, and a dummy bcrypt compare | Attackers can't find out which emails are registered |
 | **Rate limit** on login | Slows down password guessing |
+
+## QR check-in
+
+```mermaid
+sequenceDiagram
+    participant L as Lecturer screen
+    participant API
+    participant S as Student phone
+    participant DB as PostgreSQL
+
+    L->>API: POST /sessions/:id/check-in/open
+    loop every few seconds
+      L->>API: GET /sessions/:id/check-in/qr
+      API-->>L: token = id.window.HMAC(id, window), refreshInSeconds
+    end
+    S->>API: POST /check-in { token }
+    API->>API: recompute HMAC, check window is current or previous
+    API->>DB: session open? student enrolled?
+    API->>DB: insert AttendanceRecord (unique per student per session)
+    API-->>S: 201 PRESENT or LATE
+```
+
+| Choice | Reason |
+|---|---|
+| Token changes every **30 seconds** | A photo of the screen forwarded to someone outside the room stops working within a minute |
+| **One previous window accepted** | A student who scans one second before the code changes isn't rejected |
+| Tokens are **signed, not stored** | No table of codes to clean up; the server recomputes the HMAC to check one. The key is derived separately from the access-token key |
+| **Late is measured from the session start**, not from when check-in opened | Matches how lecturers think: "class is at 08:00, late after 08:10" |
+| **Unique (session, student)** in the database | Two scans at the same moment can't create two records; the second gets "already checked in" |
+| A scan **never overwrites a hand-marked record** | If a lecturer marked someone EXCUSED, a later scan doesn't change it |
+| Forged codes and non-enrolled scans are **audited** | Repeated attempts show up in the audit log |
+
+**Known limitation:** a student in the room can still read the code aloud or message it within the 60-second window. Possible next steps are checking the phone's location against the venue, or limiting each student account to one registered device.
 
 ## Technology choices
 
