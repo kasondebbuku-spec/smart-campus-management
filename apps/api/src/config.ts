@@ -10,6 +10,8 @@ const schema = z.object({
   JWT_ACCESS_SECRET: z.string().min(32, "JWT_ACCESS_SECRET must be at least 32 characters"),
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(15 * 60),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(7),
+  // A refresh token reused this soon after being swapped is treated as two tabs racing, not theft.
+  REFRESH_REUSE_GRACE_SECONDS: z.coerce.number().int().min(0).default(10),
   BCRYPT_ROUNDS: z.coerce.number().int().min(4).max(15).default(12),
   CORS_ORIGINS: z
     .string()
