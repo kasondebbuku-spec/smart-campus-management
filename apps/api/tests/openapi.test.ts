@@ -5,16 +5,21 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import { openApiSpec } from "../src/openapi/spec.js";
 
-// Where each router is mounted in src/app.ts.
-const MOUNTS: Record<string, string> = {
-  "modules/auth/auth.routes.ts": "/api/v1/auth",
-  "modules/users/users.routes.ts": "/api/v1/users",
-  "modules/courses/courses.routes.ts": "/api/v1/courses",
-  "modules/sessions/sessions.routes.ts": "/api/v1",
-  "modules/attendance/attendance.routes.ts": "/api/v1",
-};
-
 const src = (file: string) => readFileSync(fileURLToPath(new URL(`../src/${file}`, import.meta.url)), "utf8");
+
+// Where each router file is mounted, read from src/app.ts itself so a new router can't be
+// missed: `import { xRouter } from "./modules/x/x.routes.js"` + `app.use("/prefix", xRouter...)`.
+function mounts(): Record<string, string> {
+  const app = src("app.ts");
+  const files = new Map([...app.matchAll(/import \{ (\w+Router) \} from "\.\/(modules\/[^"]+)\.js"/g)].map((m) => [m[1]!, `${m[2]}.ts`]));
+  const result: Record<string, string> = {};
+  for (const m of app.matchAll(/app\.use\("([^"]+)", (\w+Router)\b/g)) {
+    const file = files.get(m[2]!);
+    if (file) result[file] = m[1]!;
+  }
+  return result;
+}
+const MOUNTS = mounts();
 
 // Reads routes straight from the source, e.g. router.post("/:id/enrolments", ...)
 // becomes "post /api/v1/courses/{id}/enrolments".
@@ -40,7 +45,15 @@ function routesInSpec(): string[] {
 }
 
 describe("OpenAPI specification", () => {
-  it("found the routes (sanity check on the parser)", () => {
+  it("found every router mounted in app.ts (sanity check on the parser)", () => {
+    expect(Object.keys(MOUNTS).sort()).toEqual([
+      "modules/attendance/attendance.routes.ts",
+      "modules/auth/auth.routes.ts",
+      "modules/courses/courses.routes.ts",
+      "modules/reports/reports.routes.ts",
+      "modules/sessions/sessions.routes.ts",
+      "modules/users/users.routes.ts",
+    ]);
     expect(routesInCode().length).toBeGreaterThan(20);
   });
 

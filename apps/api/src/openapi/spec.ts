@@ -29,7 +29,7 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Smart Campus API",
-    version: "0.2.0",
+    version: "0.3.0",
     description: [
       "University management API: accounts, courses, class sessions and attendance.",
       "",
@@ -50,6 +50,7 @@ export const openApiSpec = {
     { name: "Courses", description: "Courses, enrolment and class lists" },
     { name: "Sessions", description: "Class sessions and timetable clash detection" },
     { name: "Attendance", description: "QR check-in, manual marking and rosters" },
+    { name: "Reports", description: "Attendance rates, low-attendance warnings and CSV export" },
     { name: "System" },
   ],
   security: [{ bearerAuth: [] }],
@@ -394,6 +395,81 @@ export const openApiSpec = {
         },
       },
     },
+
+    // ---------- Reports ----------
+    "/api/v1/courses/{id}/report": {
+      get: {
+        tags: ["Reports"],
+        summary: "Attendance report for a course",
+        description: [
+          "One row per enrolled student, students at risk first.",
+          "Only sessions that have **ended** count. PRESENT and LATE count as attending; EXCUSED sessions are left out of the rate.",
+          "An ended session with no record counts as absent, and is also reported as `notRecorded` so missed marking can be fixed.",
+          "A student is `atRisk` when their rate is below the threshold (default 80%) once at least 3 sessions have counted.",
+        ].join(" "),
+        parameters: [idPath()],
+        responses: { 200: ok("Report", ref("CourseReport")), ...managerErrors },
+      },
+    },
+    "/api/v1/courses/{id}/report.csv": {
+      get: {
+        tags: ["Reports"],
+        summary: "Download the course report as a spreadsheet",
+        description:
+          "UTF-8 CSV with a byte-order mark so Excel shows names correctly. Cells starting with = + - @ are prefixed with ' so they can't run as formulas. Each download is audited.",
+        parameters: [idPath()],
+        responses: {
+          200: { description: "CSV file", content: { "text/csv": { schema: { type: "string" } } } },
+          ...managerErrors,
+        },
+      },
+    },
+    "/api/v1/me/attendance": {
+      get: {
+        tags: ["Reports"],
+        summary: "My attendance (students)",
+        description: "The signed-in student's rate in each enrolled course, with every ended session newest first.",
+        responses: {
+          200: ok("My attendance", {
+            type: "object",
+            properties: {
+              threshold: { type: "number", examples: [0.8] },
+              minSessions: { type: "integer", examples: [3] },
+              courses: {
+                type: "array",
+                items: {
+                  allOf: [
+                    ref("AttendanceStats"),
+                    {
+                      type: "object",
+                      properties: {
+                        course: { type: "object", properties: { id: { type: "string" }, code: { type: "string" }, title: { type: "string" } } },
+                        sessions: {
+                          type: "array",
+                          items: {
+                            type: "object",
+                            properties: {
+                              id: { type: "string" },
+                              startsAt: DATETIME,
+                              endsAt: DATETIME,
+                              venue: { type: "string" },
+                              status: { anyOf: [STATUS, { type: "null" }] },
+                              method: { type: ["string", "null"], enum: ["QR", "MANUAL", null] },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          401: common[401],
+          403: err("Students only"),
+        },
+      },
+    },
   },
 
   components: {
@@ -543,6 +619,41 @@ export const openApiSpec = {
       CheckInResult: {
         type: "object",
         properties: { alreadyCheckedIn: { type: "boolean" }, status: STATUS, course: { type: "string" }, recordedAt: DATETIME },
+      },
+      AttendanceStats: {
+        type: "object",
+        properties: {
+          sessions: { type: "integer", description: "Sessions that have ended" },
+          present: { type: "integer" },
+          late: { type: "integer" },
+          absent: { type: "integer" },
+          excused: { type: "integer" },
+          notRecorded: { type: "integer", description: "Ended sessions with no record; counted as absent" },
+          rate: { type: ["number", "null"], minimum: 0, maximum: 1, description: "(present + late) / (sessions − excused); null when nothing to count" },
+          atRisk: { type: "boolean" },
+        },
+      },
+      CourseReport: {
+        type: "object",
+        properties: {
+          course: { type: "object", properties: { id: { type: "string" }, code: { type: "string" }, title: { type: "string" }, semester: { type: "string" } } },
+          sessionsCounted: { type: "integer" },
+          averageRate: { type: ["number", "null"] },
+          atRisk: { type: "integer", description: "How many students are at risk" },
+          threshold: { type: "number" },
+          rows: {
+            type: "array",
+            items: {
+              allOf: [
+                {
+                  type: "object",
+                  properties: { studentId: { type: "string" }, studentNumber: { type: "string" }, firstName: { type: "string" }, lastName: { type: "string" } },
+                },
+                ref("AttendanceStats"),
+              ],
+            },
+          },
+        },
       },
       Roster: {
         type: "object",

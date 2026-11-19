@@ -11,6 +11,9 @@ const schema = z.object({
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(15 * 60),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(7),
   BCRYPT_ROUNDS: z.coerce.number().int().min(4).max(15).default(12),
+  // Students below this attendance rate are flagged, once at least ATTENDANCE_MIN_SESSIONS have ended.
+  ATTENDANCE_WARNING_THRESHOLD: z.coerce.number().min(0).max(1).default(0.8),
+  ATTENDANCE_MIN_SESSIONS: z.coerce.number().int().min(1).default(3),
   CORS_ORIGINS: z
     .string()
     .default("http://localhost:3000")
