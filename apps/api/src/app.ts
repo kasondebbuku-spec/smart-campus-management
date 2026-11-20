@@ -8,6 +8,7 @@ import { errorHandler, notFoundHandler } from "./lib/errors.js";
 import { attendanceRouter } from "./modules/attendance/attendance.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { coursesRouter } from "./modules/courses/courses.routes.js";
+import { reportsRouter } from "./modules/reports/reports.routes.js";
 import { sessionsRouter } from "./modules/sessions/sessions.routes.js";
 import { usersRouter } from "./modules/users/users.routes.js";
 import { docsRouter } from "./openapi/docs.routes.js";
@@ -34,6 +35,7 @@ export function createApp(opts: AppOptions = {}) {
   app.use("/api/v1/courses", coursesRouter);
   app.use("/api/v1", sessionsRouter); // /courses/:courseId/sessions and /sessions/:id
   app.use("/api/v1", attendanceRouter); // check-in and attendance rosters
+  app.use("/api/v1", reportsRouter); // attendance reports, CSV export, my attendance
 
   app.use(notFoundHandler);
   app.use(errorHandler);

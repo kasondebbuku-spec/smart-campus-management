@@ -76,6 +76,9 @@ Base URL: `/api/v1`
 | `GET` | `/sessions/:id/attendance` | admin, course lecturer | Every enrolled student's status, plus a summary |
 | `PUT` | `/sessions/:id/attendance` | admin, course lecturer | Mark or correct several students at once (audited old → new) |
 | `POST` | `/sessions/:id/attendance/mark-absent` | admin, course lecturer | Mark everyone without a record ABSENT (after check-in closes) |
+| `GET` | `/courses/:id/report` | admin, course lecturer | Each student's attendance rate, at-risk students first |
+| `GET` | `/courses/:id/report.csv` | admin, course lecturer | The same report as a spreadsheet (download is audited) |
+| `GET` | `/me/attendance` | student | Your own rate in each course and every past session |
 | `GET` | `/health` | anyone | Liveness and database check |
 
 **Interactive docs:** run the API and open [`/api/docs`](http://localhost:4100/api/docs) to browse every endpoint and try it out. Sign in with `POST /auth/login`, click **Authorize**, and paste the access token. The raw OpenAPI 3.1 spec is at `/api/docs/openapi.json`.
