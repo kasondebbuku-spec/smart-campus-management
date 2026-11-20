@@ -96,6 +96,8 @@ describe.skipIf(!hasTestDb)("auth", () => {
       const stolen = refreshCookie(loginRes)!;
 
       await agent.post("/api/v1/auth/refresh").expect(200); // the real user refreshes
+      // A minute passes, well outside the grace period for racing tabs.
+      await db.refreshToken.updateMany({ where: { userId: user.id, revokedAt: { not: null } }, data: { revokedAt: new Date(Date.now() - 60_000) } });
 
       // The attacker replays the old token: rejected, and the family is revoked...
       await request(app).post("/api/v1/auth/refresh").set("Cookie", stolen).expect(401);
@@ -107,7 +109,7 @@ describe.skipIf(!hasTestDb)("auth", () => {
       expect(await db.refreshToken.count({ where: { userId: user.id, revokedAt: null } })).toBe(0);
     });
 
-    it("only lets one of two simultaneous refreshes succeed", async () => {
+    it("lets one of two simultaneous refreshes win and asks the other to retry, without ending the session", async () => {
       const user = await createUser("STUDENT");
       const { res: loginRes } = await signIn(user.email, app);
       const cookie = refreshCookie(loginRes)!;
@@ -116,7 +118,26 @@ describe.skipIf(!hasTestDb)("auth", () => {
         request(app).post("/api/v1/auth/refresh").set("Cookie", cookie),
         request(app).post("/api/v1/auth/refresh").set("Cookie", cookie),
       ]);
-      expect(results.filter((r) => r.status === 200).length).toBeLessThanOrEqual(1);
+      expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+      expect(results.find((r) => r.status === 409)!.body.error.code).toBe("refresh_race");
+
+      // The winner's new token still works: two tabs didn't log the user out.
+      const winner = refreshCookie(results.find((r) => r.status === 200)!)!;
+      await request(app).post("/api/v1/auth/refresh").set("Cookie", winner).expect(200);
+      expect(await db.auditLog.count({ where: { action: "auth.refresh_reuse_detected" } })).toBe(0);
+    });
+
+    it("treats a second tab refreshing with the just-swapped token as a race, not theft", async () => {
+      const user = await createUser("STUDENT");
+      const { agent, res: loginRes } = await signIn(user.email, app);
+      const old = refreshCookie(loginRes)!;
+
+      await agent.post("/api/v1/auth/refresh").expect(200); // tab 1
+      const tab2 = await request(app).post("/api/v1/auth/refresh").set("Cookie", old); // tab 2, a moment later
+      expect(tab2.status).toBe(409);
+
+      await agent.post("/api/v1/auth/refresh").expect(200); // session still alive
+      expect(await db.auditLog.count({ where: { action: "auth.refresh_reuse_detected" } })).toBe(0);
     });
 
     it("rejects a missing or unknown refresh token", async () => {
